@@ -1,0 +1,22 @@
+# --- Secrets: NEVER commit these ---
+.env
+.env.*
+!.env.example
+*.token
+*_token.json
+questrade_tokens.json
+
+# --- Paper-trading runtime state (local only) ---
+paper-trading/state/
+paper-trading/**/portfolio.json
+paper-trading/**/*.log
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# --- macOS ---
+.DS_Store
+paper-trading/research/

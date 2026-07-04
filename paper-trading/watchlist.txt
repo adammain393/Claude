@@ -1,0 +1,7 @@
+# One symbol per line. '#' starts a comment.
+# Replace these with the tickers you actually watch for day trades.
+AAPL
+TSLA
+NVDA
+SPY
+AMD
