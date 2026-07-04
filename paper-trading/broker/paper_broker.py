@@ -1,23 +1,19 @@
 """
 paper_broker.py — a simulated brokerage account (NO real money, NO real orders).
 
-This is the heart of Phase 0. It mimics what a real broker does:
-  - holds a cash balance
-  - fills your buy/sell orders at the current market price
-  - tracks your positions and average cost
-  - computes realized + unrealized profit/loss
+Supports:
+  * stocks/ETFs — long only, cash-settled (price × shares)
+  * FUTURES (NQ/ES minis & micros) — LONGS **AND SHORTS**, correct futures math
 
-Everything is saved to state/portfolio.json so it survives between runs.
+Futures differ from stocks in two ways that matter for honest paper numbers:
+  1. P/L = points moved × POINT VALUE × contracts — not price × quantity.
+     NQ = $20/pt, MNQ = $2/pt, ES = $50/pt, MES = $5/pt.
+  2. Opening a position posts MARGIN, it doesn't spend the notional. We
+     enforce a simplified initial margin per contract, and settle realized
+     P/L into cash whenever a position is reduced, closed, or flipped.
 
-KEY CONCEPTS (so the live version later is not a mystery):
-  * Market order  = "fill me right now at whatever the price is." That's what
-                    we simulate here.
-  * Average cost  = if you buy 10 @ $100 then 10 @ $120, your avg cost is $110.
-                    P/L is measured against this.
-  * Realized P/L  = profit/loss you locked in by SELLING.
-  * Unrealized P/L= paper profit/loss on shares you still HOLD.
-  * Commission    = fee per trade. Wealthsimple = $0. Questrade charges on
-                    stocks. We keep a knob for it; default $0.
+Positions carry SIGNED quantity: +3 = long 3 contracts, -3 = short 3.
+Everything persists to state/portfolio.json between runs.
 """
 
 import json
@@ -27,6 +23,14 @@ from datetime import datetime, timezone
 from .quotes import get_quote
 
 DEFAULT_STATE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "state", "portfolio.json")
+
+# Approximate CME initial margins — they drift over time; close enough for paper.
+FUTURES = {
+    "NQ=F":  {"pv": 20.0, "margin": 25000.0, "label": "NQ E-mini, $20/pt"},
+    "MNQ=F": {"pv": 2.0,  "margin": 2500.0,  "label": "MNQ micro, $2/pt"},
+    "ES=F":  {"pv": 50.0, "margin": 16000.0, "label": "ES E-mini, $50/pt"},
+    "MES=F": {"pv": 5.0,  "margin": 1600.0,  "label": "MES micro, $5/pt"},
+}
 
 
 class OrderError(Exception):
@@ -44,9 +48,9 @@ class PaperBroker:
         self.commission = commission
         self.starting_cash = starting_cash
         self.cash = starting_cash
-        self.positions = {}   # symbol -> {"qty": int, "avg_price": float}
+        self.positions = {}   # symbol -> {"qty": signed int, "avg_price": float}
         self.realized_pnl = 0.0
-        self.history = []     # list of trade dicts
+        self.history = []
         self._load()
 
     # ---------- persistence ----------
@@ -73,48 +77,75 @@ class PaperBroker:
 
     # ---------- orders ----------
     def buy(self, symbol: str, qty: int):
-        symbol = symbol.upper()
-        if qty <= 0:
-            raise OrderError("Quantity must be positive.")
-        price = get_quote(symbol)
-        cost = price * qty + self.commission
-        if cost > self.cash + 1e-9:
-            raise OrderError(
-                f"Not enough cash: need ${cost:,.2f}, have ${self.cash:,.2f}. "
-                f"(No margin in paper mode — that's on purpose.)")
-        pos = self.positions.get(symbol, {"qty": 0, "avg_price": 0.0})
-        new_qty = pos["qty"] + qty
-        pos["avg_price"] = (pos["avg_price"] * pos["qty"] + price * qty) / new_qty
-        pos["qty"] = new_qty
-        self.positions[symbol] = pos
-        self.cash -= cost
-        self._record("BUY", symbol, qty, price)
-        self._save()
-        return {"symbol": symbol, "side": "BUY", "qty": qty, "price": price}
+        return self._trade(symbol.strip().upper(), +int(qty))
 
     def sell(self, symbol: str, qty: int):
-        symbol = symbol.upper()
-        if qty <= 0:
+        return self._trade(symbol.strip().upper(), -int(qty))
+
+    def _trade(self, symbol: str, delta: int):
+        if delta == 0:
             raise OrderError("Quantity must be positive.")
-        pos = self.positions.get(symbol)
-        if not pos or pos["qty"] < qty:
-            held = pos["qty"] if pos else 0
-            raise OrderError(f"Can't sell {qty} {symbol}: you hold {held}. "
-                             f"(No short-selling in paper mode yet.)")
+        spec = FUTURES.get(symbol)
         price = get_quote(symbol)
-        proceeds = price * qty - self.commission
-        realized = (price - pos["avg_price"]) * qty
-        self.realized_pnl += realized
-        pos["qty"] -= qty
-        if pos["qty"] == 0:
-            del self.positions[symbol]
+        pos = self.positions.get(symbol, {"qty": 0, "avg_price": 0.0})
+        q0, q1 = pos["qty"], pos["qty"] + delta
+        pv = spec["pv"] if spec else 1.0
+
+        if spec is None and q1 < 0:
+            raise OrderError("Shorting stocks isn't supported in paper mode. "
+                             f"Shorts work on futures: {', '.join(FUTURES)}")
+
+        # figure out the realized P/L of any closing portion first (no mutation yet)
+        realized = 0.0
+        if q0 != 0 and (delta > 0) != (q0 > 0):
+            closed = min(abs(delta), abs(q0))
+            side = 1 if q0 > 0 else -1           # +1 closing longs, -1 closing shorts
+            realized = (price - pos["avg_price"]) * closed * side * pv
+
+        # ---- validate before committing ----
+        if spec is None:
+            if delta > 0:
+                cost = price * delta + self.commission
+                if cost > self.cash + 1e-9:
+                    raise OrderError(f"Not enough cash: need ${cost:,.2f}, have ${self.cash:,.2f}.")
         else:
+            others = sum(FUTURES[s]["margin"] * abs(p["qty"])
+                         for s, p in self.positions.items()
+                         if s in FUTURES and s != symbol)
+            margin_needed = others + FUTURES[symbol]["margin"] * abs(q1)
+            if margin_needed > self.cash + realized + 1e-9:
+                raise OrderError(
+                    f"Not enough margin: {abs(q1)} {symbol} needs "
+                    f"${FUTURES[symbol]['margin'] * abs(q1):,.0f} "
+                    f"(cash ${self.cash:,.2f}). Fewer contracts, or use micros "
+                    f"(MNQ=F/MES=F).")
+
+        # ---- commit ----
+        if q0 != 0 and (delta > 0) != (q0 > 0):          # reducing / closing / flipping
+            self.realized_pnl += realized
+            self.cash += realized
+            if q1 == 0:
+                self.positions.pop(symbol, None)
+            elif (q1 > 0) == (q0 > 0):                    # partial close, same side remains
+                pos["qty"] = q1
+                self.positions[symbol] = pos
+            else:                                         # flipped through zero
+                self.positions[symbol] = {"qty": q1, "avg_price": price}
+        else:                                             # opening / adding
+            pos["avg_price"] = (pos["avg_price"] * abs(q0) + price * abs(delta)) / abs(q1)
+            pos["qty"] = q1
             self.positions[symbol] = pos
-        self.cash += proceeds
-        self._record("SELL", symbol, qty, price, realized=realized)
+
+        if spec is None:                                  # stocks are cash-settled
+            self.cash -= price * delta                    # delta<0 (sell) adds cash
+        self.cash -= self.commission
+
+        self._record("BUY" if delta > 0 else "SELL", symbol, abs(delta), price,
+                     realized=realized if realized else None)
         self._save()
-        return {"symbol": symbol, "side": "SELL", "qty": qty, "price": price,
-                "realized": realized}
+        return {"symbol": symbol, "side": "BUY" if delta > 0 else "SELL",
+                "qty": abs(delta), "price": price, "realized": realized,
+                "position": q1}
 
     def _record(self, side, symbol, qty, price, realized=None):
         self.history.append({
@@ -125,22 +156,32 @@ class PaperBroker:
 
     # ---------- reporting ----------
     def snapshot(self):
-        """Return a full account snapshot with live prices."""
         rows = []
-        holdings_value = 0.0
+        stock_value = 0.0
+        futures_unreal = 0.0
+        margin_used = 0.0
         for sym, pos in sorted(self.positions.items()):
             last = get_quote(sym)
-            mkt = last * pos["qty"]
-            unreal = (last - pos["avg_price"]) * pos["qty"]
-            holdings_value += mkt
+            spec = FUTURES.get(sym)
+            pv = spec["pv"] if spec else 1.0
+            unreal = (last - pos["avg_price"]) * pos["qty"] * pv   # signed qty → shorts correct
+            if spec:
+                futures_unreal += unreal
+                margin_used += spec["margin"] * abs(pos["qty"])
+                mkt = unreal
+            else:
+                mkt = last * pos["qty"]
+                stock_value += mkt
             rows.append({
                 "symbol": sym, "qty": pos["qty"], "avg_price": pos["avg_price"],
                 "last": last, "market_value": mkt, "unrealized": unreal,
+                "kind": spec["label"] if spec else "stock",
             })
-        total = self.cash + holdings_value
+        total = self.cash + stock_value + futures_unreal
         return {
             "cash": self.cash,
-            "holdings_value": holdings_value,
+            "holdings_value": stock_value + futures_unreal,
+            "margin_used": margin_used,
             "total_value": total,
             "starting_cash": self.starting_cash,
             "total_pnl": total - self.starting_cash,

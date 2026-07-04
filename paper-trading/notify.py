@@ -26,6 +26,7 @@ def log_alert(symbol, sig, replay=False):
         "side": sig.get("side"),
         "reason": sig.get("reason"),
         "price": sig.get("price"),
+        "levels": sig.get("levels"),
     }
     if replay:
         entry["replay"] = True

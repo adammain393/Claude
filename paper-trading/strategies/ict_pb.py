@@ -242,6 +242,13 @@ def _scan(symbol, sess, pools, sw_hi, sw_lo, side):
         if rr is not None and rr > 15:
             rr = None   # zone sits on the stop — a ratio that inflated is noise, not signal
 
+        # final draw (TP2): nearest opposing EXTERNAL pool not yet swept today
+        opposite = pools["buy"] if long_side else pools["sell"]
+        unswept = [lvl for _, lvl in opposite
+                   if (lvl > entry if long_side else lvl < entry)
+                   and not any((b["h"] >= lvl if long_side else b["l"] <= lvl) for b in sess)]
+        tp2 = (min(unswept) if long_side else max(unswept)) if unswept else None
+
         t_sweep = ict.bar_et(sweep_bar).strftime("%H:%M")
         t_mss = ict.bar_et(sess[mss_j]).strftime("%H:%M")
         details = [
@@ -255,8 +262,14 @@ def _scan(symbol, sess, pools, sw_hi, sw_lo, side):
         ]
         if smt:
             details.append(("✅ " if "✅" in smt else "— ") + smt)
-        details.append(f"📐 Suggested: stop {stop:,.2f}"
-                       + (f" | TP1 (internal) {tp1:,.2f} | ≈{rr:.1f}R" if rr else ""))
+        risk_line = f"📐 Suggested: stop {stop:,.2f}"
+        if tp1:
+            risk_line += f" | TP1 (internal) {tp1:,.2f}"
+            if rr:
+                risk_line += f" ≈{rr:.1f}R"
+        if tp2:
+            risk_line += f" | final draw {tp2:,.2f}"
+        details.append(risk_line)
         return {
             "symbol": symbol,
             "setup": NAME,
@@ -265,5 +278,13 @@ def _scan(symbol, sess, pools, sw_hi, sw_lo, side):
             "reason": f"{'LONG' if long_side else 'SHORT'} setup — "
                       f"swept {pool_name} → MSS → {zone_kind} (NY AM killzone)",
             "details": details,
+            # machine-readable levels — resolve.py walks these forward for stats
+            "levels": {
+                "entry": round(entry, 2), "stop": round(stop, 2),
+                "tp1": round(tp1, 2) if tp1 else None,
+                "tp2": round(tp2, 2) if tp2 else None,
+                "zone_lo": round(zone["lo"], 2), "zone_hi": round(zone["hi"], 2),
+                "bar_time": last["t"],
+            },
         }
     return None

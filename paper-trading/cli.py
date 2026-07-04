@@ -29,18 +29,28 @@ def cmd_quote(args):
     print(f"{sym}: {_money(get_quote(sym))}")
 
 
+def _describe(fill):
+    pos = fill["position"]
+    if pos == 0:
+        return "flat"
+    return f"{'LONG' if pos > 0 else 'SHORT'} {abs(pos)}"
+
+
 def cmd_buy(args):
     b = PaperBroker()
     fill = b.buy(args[0], int(args[1]))
-    print(f"✅ BOUGHT {fill['qty']} {fill['symbol']} @ {_money(fill['price'])}")
+    tag = f"  (realized {_money(fill['realized'])})" if fill["realized"] else ""
+    print(f"✅ BOUGHT {fill['qty']} {fill['symbol']} @ {_money(fill['price'])}{tag}"
+          f"  → now {_describe(fill)}")
     _print_account(b)
 
 
 def cmd_sell(args):
     b = PaperBroker()
     fill = b.sell(args[0], int(args[1]))
-    tag = f"  (realized { _money(fill['realized']) })"
-    print(f"✅ SOLD {fill['qty']} {fill['symbol']} @ {_money(fill['price'])}{tag}")
+    tag = f"  (realized {_money(fill['realized'])})" if fill["realized"] else ""
+    print(f"✅ SOLD {fill['qty']} {fill['symbol']} @ {_money(fill['price'])}{tag}"
+          f"  → now {_describe(fill)}")
     _print_account(b)
 
 
@@ -48,6 +58,8 @@ def _print_account(b):
     s = b.snapshot()
     print("\n── Account ─────────────────────────────")
     print(f"  Cash:            {_money(s['cash'])}")
+    if s.get("margin_used"):
+        print(f"  Margin in use:   {_money(s['margin_used'])}")
     print(f"  Holdings value:  {_money(s['holdings_value'])}")
     print(f"  Total value:     {_money(s['total_value'])}")
     sign = "+" if s["total_pnl"] >= 0 else ""

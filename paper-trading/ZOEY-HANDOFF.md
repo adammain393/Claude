@@ -69,9 +69,10 @@ is probably wrong); 0.5–1% risk per trade; trades typically last 20–30 min.
 | Live scanner loop | `scanner.py` | ✅ `python3 scanner.py --strategy ict_pb --interval 60` |
 | Discord alerts (phone) | `notify.py` + webhook in `.env` | ✅ tested; embed with levels, confluences, one-tap TradingView chart link (`CME_MINI:NQ1!`) |
 | Replay / backcheck (no lookahead) | `replay.py` | ✅ `python3 replay.py --strategy ict_pb --symbol NQ=F` (add `--notify` to push hits through the real Discord path) |
+| Outcome resolver (win/loss/no-fill/open per alert, R-multiples, win-rate scoreboard) | `resolve.py` | ✅ walks each logged alert forward through the bars; conservative tie-break (stop+TP same bar = LOSS); replay alerts scored separately from live |
 | Forex Factory calendar | `broker/news.py` | ✅ auto-fetch, disk-cached in `state/` (feed rate-limits; stale cache is served on failure by design) |
 | ICT primitives (FVG/sweep/MSS/killzone/EQ) | `broker/ict.py` | ✅ unit-sanity-checked on live data |
-| Paper broker ($100k virtual, avg-cost P/L) | `broker/paper_broker.py`, `cli.py` | ✅ full buy/sell/positions/history loop tested |
+| Paper broker ($100k virtual) | `broker/paper_broker.py`, `cli.py` | ✅ stocks long-only; **futures long AND short** with correct point-value P/L (NQ $20/pt, MNQ $2/pt, ES $50/pt, MES $5/pt) and simplified initial-margin enforcement |
 | Alert log for stats | `state/alerts.jsonl` | ✅ every alert recorded; replay alerts flagged `"replay": true` |
 
 Environment: Mac (Apple Silicon), Python 3.14 — **stdlib only, zero pip
@@ -83,9 +84,18 @@ tracked files.
 
 Both YouTubers claim win rates (75%, 70%+) with **zero published evidence**.
 The plan: trust only our own numbers. Every alert is logged to
-`state/alerts.jsonl`; Adam reacts ✅ (would take) / ❌ (would pass) on each
-Discord alert. After ~20–30 alerts, compute: setup frequency, Adam-agreement
-rate, and paper win rate. That log is the ground truth — protect it.
+`state/alerts.jsonl` with machine-readable levels (entry/stop/TP1/TP2);
+`resolve.py` grades each one by walking forward through the bars
+(WIN/LOSS/NO-FILL/OPEN + R-multiples) and prints the scoreboard. Adam still
+reacts ✅ (would take) / ❌ (would pass) on each Discord alert — that measures
+his agreement with the bot, while resolve.py measures the setup itself. The
+log is the ground truth — protect it.
+
+First graded data point (replay of Mon Jun 29): the setup was RIGHT about
+direction but graded NO-FILL — price never retraced to the zone-midpoint
+entry; the zone EDGE would have filled. Entry placement inside the zone
+(question #6 to Adam) is therefore not cosmetic — it decides which trades
+exist at all.
 
 ## 5. Data feed — current limit
 
@@ -123,7 +133,8 @@ cd "~/Desktop/Claude Code/Claude/paper-trading"
 
 python3 scanner.py --strategy ict_pb --interval 60   # live scan, killzone-gated
 python3 replay.py --strategy ict_pb --symbol NQ=F    # backcheck past week
-python3 cli.py account                               # paper account P/L
+python3 resolve.py                                   # grade logged alerts, win-rate scoreboard
+python3 cli.py account                               # paper account P/L (futures shorts OK)
 python3 broker/news.py                               # today's red/orange USD news
 ```
 
