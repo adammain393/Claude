@@ -143,6 +143,40 @@ def displacement(bars, i, mult=1.5, lookback=20):
     return abs(bars[i]["c"] - bars[i]["o"]) >= mult * avg_body if avg_body else False
 
 
+def resample(bars, minutes):
+    """Aggregate bars into a larger timeframe (e.g. 5m bars -> 60m bars)."""
+    size = minutes * 60
+    out = []
+    bucket = None
+    for b in bars:
+        key = b["t"] - (b["t"] % size)
+        if bucket is None or bucket["t"] != key:
+            if bucket:
+                out.append(bucket)
+            bucket = dict(t=key, o=b["o"], h=b["h"], l=b["l"], c=b["c"], v=b["v"])
+        else:
+            bucket["h"] = max(bucket["h"], b["h"])
+            bucket["l"] = min(bucket["l"], b["l"])
+            bucket["c"] = b["c"]
+            bucket["v"] += b["v"]
+    if bucket:
+        out.append(bucket)
+    return out
+
+
+def unfilled_fvgs(bars, bullish=True):
+    """FVGs that price has NOT fully traded through since they formed.
+    These are the 'unfilled gaps' PB uses as his key levels / draws."""
+    out = []
+    for g in (bullish_fvgs(bars) if bullish else bearish_fvgs(bars)):
+        later = bars[g["i"] + 1:]
+        filled = (any(b["l"] <= g["lo"] for b in later) if bullish
+                  else any(b["h"] >= g["hi"] for b in later))
+        if not filled:
+            out.append(g)
+    return out
+
+
 # ---------- reference levels ----------
 
 def session_levels(bars, start_hm, end_hm):

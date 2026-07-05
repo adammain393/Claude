@@ -27,30 +27,43 @@ mirrored, on **NQ1! and ES1!** (CME NASDAQ-100 / S&P 500 E-mini futures — the
 data feed calls them `NQ=F` / `ES=F`):
 
 **Only during the NY AM killzone, 9:30–11:00 AM ET.** Nothing outside it.
+(Every one of his recorded live entries lands 9:31–10:30.)
 
-1. **LIQUIDITY SWEEP** — price raids a *significant* sell-side pool (for a
-   long): previous day's low, Asia session low (8pm–12am ET), London session
-   low (2am–5am ET), a data wick low, or an obvious intraday swing low.
-   Qualifies only if the wick goes THROUGH the level and the body closes back
-   on the right side. A body close through with no reclaim = continuation,
-   not a sweep.
-2. **MARKET STRUCTURE SHIFT (MSS)** — after the sweep, a candle **body**
-   closes above the most recent swing high. PB's hard rule: *"It has to be a
-   body close. It cannot be a wick."* A wick = another sweep, not a shift.
-3. **ENTRY ZONE** — preferred: an **inversion FVG** — a bearish fair value gap
-   that a candle body closes **fully beyond** (Tiz's strict rule: close ON the
-   gap edge doesn't count), then price retests it. Fallback: a fresh bullish
-   FVG left by the displacement leg, still unviolated.
-4. **CONFLUENCES** — reported in the alert for Adam to judge, not hard
-   filters (unconfirmed — see §6): entry zone in **discount** (at/below the
-   50% EQ of the impulse leg; "never long in premium, never short in
-   discount"); **SMT divergence** (NQ swept the level but ES held it, or vice
-   versa — the one that held is the stronger index); **displacement** on the
-   shift candle.
-5. **RISK FRAME suggested in the alert** — stop under the sweep wick;
-   **TP1 = nearest internal liquidity** (PB: internal liquidity is always the
-   first target, never previous-day/session levels); final draw = the bigger
-   external pool.
+This is **v2** — corrected against 20 of PB's LIVE-TRADE recap videos (what
+he does with money on, not just what he teaches):
+
+1. **LIQUIDITY SWEEP at an HTF KEY LEVEL — hard gate.** The raid (prev-day
+   low, Asia/London low, data wick, swing low… for a long) only counts if it
+   happens AT an unfilled 15m/1H/4H fair value gap or an HTF intermediate
+   high/low. His words: *"I don't take trades just off liquidity label like
+   previously high, previously low, London high, London low, none of that."*
+   A **re-sweep** (second raid of the same level) is his highest-conviction
+   trigger and is tagged in the alert.
+2. **MARKET STRUCTURE SHIFT (MSS)** — a candle **body** closes through the
+   most recent opposing swing. *"It has to be a body close. It cannot be a
+   wick."*
+3. **CONFIRMATION → MARKET ENTRY.** Preferred trigger: inversion FVG (body
+   close fully beyond the gap). But he does NOT rest limit orders inside the
+   gap — every recorded entry is **market, on the confirming body close**
+   (down to 30-second/1-minute charts): *"I'm not trying to enter these
+   halfass closes… I like that. Bang."* The alert's entry = the confirming
+   close; treat the alert as "go check the 1-minute now."
+4. **CONFLUENCES (reported, not gates):** displacement on the shift
+   (near-mandatory — its absence is flagged as a warning), NQ/ES SMT
+   (optional at entry: *"Do I even need to look at ES? Nah"*), EQ
+   premium/discount (info only — he knowingly takes premium entries).
+5. **RISK FRAME:** stop beyond the full manipulation wick; on an oversized
+   wick, **half-wick** (*"I'm just going to go like half the wick"*) — never
+   widened; he halves SIZE instead. **Full close at TP1** = nearer of ~1:1 or
+   the first internal pool (*"We're just going to go for that one to one"*,
+   *"claim the low-hanging fruit"*) — no partials, no runners, in 10 straight
+   recap videos. **Mandatory exit:** *"if there's an SMT at your target on
+   ES, then you must close on NQ."* **One trade a day**, and a failed trade
+   invalidates the daily bias — no re-entry.
+6. **Skip conditions he applies live:** big one-way overnight move (alert
+   warns above a 1% overnight range — OUR threshold, unconfirmed), choppy
+   no-key-level days, and reduced size in historically bad months (his
+   backtest: March).
 
 **News rules (wired in, from Forex Factory):** no alerts from 5 min before to
 10 min after a **red-folder USD** release; the high/low of the candle printed
@@ -91,11 +104,12 @@ reacts ✅ (would take) / ❌ (would pass) on each Discord alert — that measur
 his agreement with the bot, while resolve.py measures the setup itself. The
 log is the ground truth — protect it.
 
-First graded data point (replay of Mon Jun 29): the setup was RIGHT about
-direction but graded NO-FILL — price never retraced to the zone-midpoint
-entry; the zone EDGE would have filled. Entry placement inside the zone
-(question #6 to Adam) is therefore not cosmetic — it decides which trades
-exist at all.
+Case study (replay of Mon Jun 29): under v1's assumed limit-at-zone-midpoint
+entry, the setup graded NO-FILL — right direction, missed trade. Under v2's
+evidence-based market-on-confirmation entry (how PB actually enters), the
+same setup grades **WIN +0.83R**. Entry mechanics decide which trades exist
+at all — this is why the strategy is corrected against his live trades, not
+just his lessons.
 
 ## 5. Data feed — current limit
 
@@ -107,13 +121,18 @@ let him trade live off delayed data.
 
 ## 6. What the bot still needs (open items, in priority order)
 
-1. **Adam's answers to 15 numbered questions** (sent 2026-07-03 in chat).
-   Every one is a parameter currently running on an **unconfirmed default**:
-   swing strictness (k=3 fractal), pool list, timeframes (all 5m), inversion
-   strictness (Tiz-strict), entry point in zone (midpoint), IFVG-mandatory?,
-   displacement required?, EQ hard filter or bonus (bonus), SMT hard or bonus
-   (bonus), AM-only (yes), news colors (red only), ping timing, stop buffer,
-   TP logic, skip-after-big-overnight-move (not implemented).
+1. **Adam's remaining open questions.** Most of the original 15 were
+   RESOLVED by live-video evidence (entry = market on confirming close; stop
+   = full wick or half-wick when oversized; TP = full close at ~1R/first
+   internal pool, no partials; SMT optional at entry + mandatory exit; EQ not
+   enforced; AM session only; one trade a day; skip big-overnight/choppy
+   days). Still genuinely open for Adam:
+   - swing tightness (scanner uses a 3-bar fractal — unconfirmed),
+   - the overnight-move warn threshold (1% is our guess),
+   - confirm the HTF hard gate feels right once he sees live alerts,
+   - PB lesson 6 notes (FVG definitions video, captions disabled),
+   - prop firm choice, scanner auto-start (option b), and confirming
+     pings-only through the funded stage.
    **House rule (Adam's explicit instruction): never fill strategy gaps with
    assumptions — ask him numbered questions and label unconfirmed defaults.**
 2. **PB lesson 6 notes** — the FVG-definition video has captions disabled;

@@ -41,7 +41,9 @@ def grade(alert, bars):
 
     t0 = lv.get("bar_time")
     day_end = None
-    filled_at = None
+    # v2 alerts are market entries on the confirming close — filled immediately.
+    # Older alerts assumed a resting limit at the entry price.
+    filled_at = t0 if lv.get("market") else None
     for b in bars:
         if b["t"] <= t0:
             continue
