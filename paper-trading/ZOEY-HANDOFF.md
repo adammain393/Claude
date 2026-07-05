@@ -123,7 +123,12 @@ eval consistency 50% (biggest day ≤ 50% of total profit → keep days ≤
 ~$1,500), cap 4 minis / 40 micros. Funded: no consistency rule, 5 winning
 days of $150+ before first payout, 90/10 split. Platforms: Rithmic /
 Tradovate / NinjaTrader — real-time CME data comes with the account; wire
-the scanner to that feed before live killzone use. **Automation policy:
+the scanner to that feed before live killzone use. **Adam's execution stack:
+TradingView via Tradovate** (Lucid officially supports it) — alerts already
+deep-link to the NQ1!/ES1! TradingView charts, so the flow is alert → tap →
+confirm → execute on the same chart. He'll need a paid TradingView tier +
+the CME real-time add-on there; Lucid's rules are NOT enforced by
+TradingView, only by Lucid's layer. **Automation policy:
 Lucid explicitly permits bots/EAs/API strategies (HFT banned)** — our
 pings-only scanner is far inside the allowed zone. Alert now includes Lucid
 50K contract sizing at 1%/$500 risk per trade (risk % unconfirmed by Adam).
