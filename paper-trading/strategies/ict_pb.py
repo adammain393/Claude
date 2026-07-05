@@ -55,6 +55,14 @@ FRESH_BARS = 8                      # confirmation must be within 8 bars (40 min
 HTF_LEVELS = ((15, "15m"), (60, "1H"), (240, "4H"))
 OVERNIGHT_WARN_PCT = 1.0            # warn above this overnight range (UNCONFIRMED guess)
 
+# Adam's prop firm: Lucid Trading, LucidFlex 50K (picked 2026-07-05).
+# Eval: $3,000 target | $2,000 EOD-trailing max loss | 50% consistency
+# (biggest day ≤ 50% of total → keep days ≤ ~$1,500) | cap 4 minis / 40 micros.
+# Risk per trade: 1% = $500 (Tiz teaches 1% eval — UNCONFIRMED as Adam's number).
+PROP = {"account": 50_000, "risk_pct": 0.01, "max_micros": 40,
+        "micro_pv": {"NQ=F": 2.0, "MNQ=F": 2.0, "ES=F": 5.0, "MES=F": 5.0},
+        "micro_label": {"NQ=F": "MNQ", "MNQ=F": "MNQ", "ES=F": "MES", "MES=F": "MES"}}
+
 _cache = {}
 
 
@@ -348,7 +356,20 @@ def _scan(symbol, sess, pools, htf, overnight_note, sw_hi, sw_lo, side):
         if tp2:
             risk_line += f" | external draw {tp2:,.2f}"
         details.append(risk_line)
-        details.append("🚪 Exit rule: SMT at your target on the pair → close immediately. One trade a day.")
+        pv = PROP["micro_pv"].get(symbol)
+        if pv:
+            budget = PROP["account"] * PROP["risk_pct"]
+            contracts = min(int(budget / (risk * pv)), PROP["max_micros"]) if risk else 0
+            label = PROP["micro_label"][symbol]
+            if contracts >= 1:
+                details.append(f"📊 Lucid 50K sizing: {contracts} {label} micros ≈ "
+                               f"${contracts * risk * pv:,.0f} risk on a {risk:,.0f}-pt stop "
+                               f"(1%/$500 budget — confirm your risk %)")
+            else:
+                details.append(f"📊 Lucid 50K sizing: stop too wide ({risk:,.0f} pts) for a "
+                               f"${budget:,.0f} risk budget even at 1 {label} — PB would pass or halve size")
+        details.append("🚪 Exit rule: SMT at your target on the pair → close immediately. One trade a day; "
+                       "eval consistency: keep any single day ≤ ~$1,500.")
         return {
             "symbol": symbol,
             "setup": NAME,

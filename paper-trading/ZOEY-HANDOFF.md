@@ -115,9 +115,18 @@ just his lessons.
 
 Free Yahoo data, **~15 min delayed**, 5-minute bars. Fine for replay, paper
 stats, and validating logic. **Not good enough to trade the live killzone.**
-The upgrade path: Adam picks a prop firm → his platform (usually Tradovate or
-Rithmic) includes real-time CME data → wire the scanner to that feed. Do not
-let him trade live off delayed data.
+
+**Prop firm: CHOSEN (2026-07-05) — Lucid Trading, LucidFlex 50K** (code TIZZ
+for a discount). Verified rules: eval ≈ $130/mo before discount, profit
+target $3,000, max loss $2,000 END-OF-DAY trailing (no daily loss limit),
+eval consistency 50% (biggest day ≤ 50% of total profit → keep days ≤
+~$1,500), cap 4 minis / 40 micros. Funded: no consistency rule, 5 winning
+days of $150+ before first payout, 90/10 split. Platforms: Rithmic /
+Tradovate / NinjaTrader — real-time CME data comes with the account; wire
+the scanner to that feed before live killzone use. **Automation policy:
+Lucid explicitly permits bots/EAs/API strategies (HFT banned)** — our
+pings-only scanner is far inside the allowed zone. Alert now includes Lucid
+50K contract sizing at 1%/$500 risk per trade (risk % unconfirmed by Adam).
 
 ## 6. What the bot still needs (open items, in priority order)
 
@@ -131,8 +140,9 @@ let him trade live off delayed data.
    - the overnight-move warn threshold (1% is our guess),
    - confirm the HTF hard gate feels right once he sees live alerts,
    - PB lesson 6 notes (FVG definitions video, captions disabled),
-   - prop firm choice, scanner auto-start (option b), and confirming
-     pings-only through the funded stage.
+   - risk % per trade (sizing line assumes 1% = $500 — Tiz's eval number),
+   - scanner auto-start (option b), and confirming pings-only through the
+     funded stage. (Prop firm: RESOLVED — Lucid 50K Flex, see §5.)
    **House rule (Adam's explicit instruction): never fill strategy gaps with
    assumptions — ask him numbered questions and label unconfirmed defaults.**
 2. **PB lesson 6 notes** — the FVG-definition video has captions disabled;
