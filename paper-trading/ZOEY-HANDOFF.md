@@ -83,6 +83,8 @@ is probably wrong); 0.5–1% risk per trade; trades typically last 20–30 min.
 | Discord alerts (phone) | `notify.py` + webhook in `.env` | ✅ tested; embed with levels, confluences, one-tap TradingView chart link (`CME_MINI:NQ1!`) |
 | Replay / backcheck (no lookahead) | `replay.py` | ✅ `python3 replay.py --strategy ict_pb --symbol NQ=F` (add `--notify` to push hits through the real Discord path) |
 | Outcome resolver (win/loss/no-fill/open per alert, R-multiples, win-rate scoreboard) | `resolve.py` | ✅ walks each logged alert forward through the bars; conservative tie-break (stop+TP same bar = LOSS); replay alerts scored separately from live |
+| **Lucid eval simulator** (the buy-the-eval gate) | `resolve.py` (runs automatically after grading) | ✅ simulates taking every live alert at $500 risk against the 50K Flex rules ($3,000 target, $2,000 EOD drawdown, 50% consistency) and prints a VERDICT; gate: ≥20 graded alerts, ≥55% wins, positive P/L, survivable drawdown. Adam does NOT buy the eval until this flips. |
+| **Morning automation** | `~/Library/LaunchAgents/com.adam.ict-scanner.plist` + pmset wake | ✅ Mac self-wakes 6:20 AM PT weekdays, scanner auto-starts 6:25 (9:25 ET), auto-exits ~8:05 (11:05 ET) via `--auto-exit`; logs to `state/scanner.log` |
 | Forex Factory calendar | `broker/news.py` | ✅ auto-fetch, disk-cached in `state/` (feed rate-limits; stale cache is served on failure by design) |
 | ICT primitives (FVG/sweep/MSS/killzone/EQ) | `broker/ict.py` | ✅ unit-sanity-checked on live data |
 | Paper broker ($100k virtual) | `broker/paper_broker.py`, `cli.py` | ✅ stocks long-only; **futures long AND short** with correct point-value P/L (NQ $20/pt, MNQ $2/pt, ES $50/pt, MES $5/pt) and simplified initial-margin enforcement |
