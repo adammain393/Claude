@@ -88,6 +88,8 @@ def main():
     ap.add_argument("--timeframe", default=None, help="bar size: 1m,5m,15m...")
     ap.add_argument("--symbols", default=None, help="comma-separated, overrides watchlist")
     ap.add_argument("--strategy", default="example_ema_reclaim", help="strategy module name")
+    ap.add_argument("--auto-exit", action="store_true",
+                    help="exit on its own once the strategy's killzone is over (for scheduled runs)")
     args = ap.parse_args()
 
     strategy = load_strategy(args.strategy)
@@ -117,8 +119,17 @@ def main():
     if args.once:
         scan_once(strategy, watchlist, args.timeframe, last_alert)
         return
+    kz_end = getattr(strategy, "KILLZONE", ((9, 30), (11, 0)))[1]
+    end_minutes = kz_end[0] * 60 + kz_end[1] + 5      # 5 min grace after killzone
     try:
         while True:
+            if args.auto_exit:
+                from zoneinfo import ZoneInfo
+                now_et = datetime.now(ZoneInfo("America/New_York"))
+                if now_et.hour * 60 + now_et.minute >= end_minutes:
+                    print(f"Killzone over ({now_et:%H:%M} ET) — scanner signing off. "
+                          "Run 'python3 resolve.py' tonight to grade today's alerts.")
+                    return
             scan_once(strategy, watchlist, args.timeframe, last_alert)
             time.sleep(args.interval)
     except KeyboardInterrupt:
