@@ -114,6 +114,46 @@ def main():
     if skipped:
         print(f"\n({skipped} old alert(s) skipped — logged before levels were recorded)")
 
+    _eval_sim([(a, r) for a, r in graded if not a.get("replay")])
+
+
+def _eval_sim(live, risk=500.0, target=3000.0, max_loss=2000.0, min_sample=20):
+    """Simulate the Lucid 50K Flex eval over the LIVE graded alerts:
+    would taking every alert at $500 risk have passed by now, and is the
+    sample big enough to trust? This is the buy-the-eval gate."""
+    days = {}
+    for a, r in live:
+        if "r" in r:
+            days.setdefault(a["time"][:10], 0.0)
+            days[a["time"][:10]] += r["r"] * risk
+    print("\n════ LUCID 50K EVAL SIMULATION (live alerts @ $500 risk) ════")
+    if not days:
+        print("No graded live alerts yet — run the scanner on killzone mornings first.")
+        return
+    balance, worst, biggest = 0.0, 0.0, 0.0
+    for day in sorted(days):
+        balance += days[day]
+        worst = min(worst, balance)
+        biggest = max(biggest, days[day])
+        print(f"  {day}: {days[day]:+8,.0f}  →  running {balance:+8,.0f}")
+    n = len(live)
+    decided = [r for _, r in live if r["outcome"] in ("WIN", "LOSS")]
+    wins = sum(1 for r in decided if r["outcome"] == "WIN")
+    consistency_ok = balance <= 0 or biggest <= 0.5 * max(balance, 1e-9)
+    print(f"\n  P/L: ${balance:+,.0f} of ${target:,.0f} target"
+          f" | worst drawdown ${worst:,.0f} (limit -${max_loss:,.0f})"
+          f" | biggest day ${biggest:,.0f} ({'OK' if consistency_ok else 'VIOLATES 50% consistency'})")
+    if n < min_sample:
+        print(f"  VERDICT: sample too small ({n}/{min_sample} alerts) — keep paper trading. "
+              "Do NOT buy the eval yet.")
+    elif decided and wins / len(decided) >= 0.55 and balance > 0 and worst > -max_loss:
+        print(f"  VERDICT: stats support buying the eval "
+              f"({wins}/{len(decided)} = {wins/len(decided)*100:.0f}% wins, positive P/L, "
+              "drawdown survivable). Final call is Adam's.")
+    else:
+        print("  VERDICT: stats do NOT yet support buying the eval "
+              "(need ≥55% wins, positive P/L, drawdown inside -$2,000).")
+
 
 if __name__ == "__main__":
     main()
