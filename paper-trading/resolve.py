@@ -123,12 +123,15 @@ def _eval_sim(live, risk=500.0, target=3000.0, max_loss=2000.0, min_sample=20):
     """Simulate the Lucid 50K Flex eval over the LIVE graded alerts:
     would taking every alert at $500 risk have passed by now, and is the
     sample big enough to trust? This is the buy-the-eval gate."""
+    # One trade a day — Adam's (and PB's) hard rule. Correlated re-alerts on
+    # the same narrative don't count as extra trades, so the sim takes only
+    # the FIRST graded alert of each day.
     days = {}
     for a, r in live:
-        if "r" in r:
-            days.setdefault(a["time"][:10], 0.0)
-            days[a["time"][:10]] += r["r"] * risk
-    print("\n════ LUCID 50K EVAL SIMULATION (live alerts @ $500 risk) ════")
+        day = a["time"][:10]
+        if "r" in r and day not in days:
+            days[day] = r["r"] * risk
+    print("\n════ LUCID 50K EVAL SIMULATION (first alert per day @ $500 risk) ════")
     if not days:
         print("No graded live alerts yet — run the scanner on killzone mornings first.")
         return
