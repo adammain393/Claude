@@ -18,9 +18,11 @@ live stats stay clean.
 Usage:  python3 resolve.py            # grade everything, print the scoreboard
 """
 
+import io
 import json
 import os
 import sys
+from contextlib import redirect_stdout
 from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -156,4 +158,18 @@ def _eval_sim(live, risk=500.0, target=3000.0, max_loss=2000.0, min_sample=20):
 
 
 if __name__ == "__main__":
-    main()
+    if "--post" in sys.argv:
+        # capture the full report, print it locally, AND post it to Discord —
+        # this is what the evening automation runs, so Adam (and Zoey, who
+        # reads the channel) get the scoreboard without touching the Mac.
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            main()
+        report = buf.getvalue()
+        print(report)
+        import notify
+        tail = "\n".join(report.strip().splitlines()[-20:])
+        notify.send(title="📊 Nightly scoreboard",
+                    lines=["```", tail[:3800], "```"])
+    else:
+        main()
